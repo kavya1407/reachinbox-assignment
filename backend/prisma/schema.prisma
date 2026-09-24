@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum EmailStatus {
+  scheduled
+  processing
+  sent
+  failed
+}
+
+model User {
+  id        String   @id @default(uuid())
+  googleId  String?  @unique
+  name      String
+  email     String   @unique
+  avatar    String?
+  createdAt DateTime @default(now())
+
+  senders Sender[]
+  slack   SlackConnection?
+}
+
+model Sender {
+  id           String   @id @default(uuid())
+  userId       String
+  email        String
+  smtpHost     String
+  smtpPort     Int
+  smtpUser     String
+  smtpPassword String
+  createdAt    DateTime @default(now())
+
+  user   User    @relation(fields: [userId], references: [id])
+  emails Email[]
+
+  @@index([userId])
+}
+
+model Email {
+  id             String      @id @default(uuid())
+  senderId       String
+  recipient      String
+  subject        String
+  body           String
+  scheduledAt    DateTime
+  sentAt         DateTime?
+  status         EmailStatus @default(scheduled)
+  bullJobId      String?     @unique
+  idempotencyKey String      @unique
+  failureReason  String?
+
+  // Per-email scheduling configuration
+  minDelayMs     Int         @default(2000)
+  hourlyLimit    Int         @default(100)
+
+  createdAt      DateTime    @default(now())
+
+  sender Sender @relation(fields: [senderId], references: [id])
+
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([recipient])
+  @@index([senderId])
+}
+
+model SlackConnection {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  accessToken String
+  teamId      String?
+  channelId   String?
+  connectedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
